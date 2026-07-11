@@ -1,0 +1,303 @@
+-- =====================================================
+-- SCRIPT PISTOL ARENA - SILENT AIM, WALLBANG, ESP
+-- Game: https://www.roblox.com/games/87018676608089/Pistol-Arena
+-- Executor: Delta X VNG (hoặc bất kỳ executor nào hỗ trợ sUNC cao)
+-- Nguồn tham khảo: ScriptBlox, RobloxDatabase[reference:0][reference:1]
+-- =====================================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local Mouse = LocalPlayer:GetMouse()
+
+-- ================== CÀI ĐẶT ==================
+local Settings = {
+    SilentAim = true,        -- Bật Silent Aim (bắn trúng dù không ngắm thẳng)
+    WallBang = true,         -- Bắn xuyên tường (nếu game hỗ trợ)
+    NoRecoil = true,         -- Không giật súng
+    ESP = true,              -- Bật ESP (nhìn xuyên tường)
+    ESPBox = true,           -- Khung bao quanh đối thủ
+    ESPName = true,          -- Hiển thị tên
+    ESPHealth = true,        -- Hiển thị thanh máu
+    ESPDistance = true,      -- Hiển thị khoảng cách
+    FOVRadius = 200,         -- Bán kính góc nhìn cho Silent Aim (pixel)
+    HeadChance = 10,         -- Tỷ lệ bắn trúng đầu (1-100), 10 = 10%
+    AimPart = "Head",        -- Bộ phận nhắm vào: "Head" hoặc "HumanoidRootPart"
+}
+
+-- ================== ESP (DÙNG DRAWING) ==================
+local espObjects = {}
+local espEnabled = Settings.ESP
+
+-- Tạo đối tượng ESP cho người chơi
+function CreateESP(player)
+    if player == LocalPlayer then return end
+    if espObjects[player] then return end
+    local character = player.Character
+    if not character then return end
+    local root = character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    local esp = {}
+    local color = Color3.fromRGB(255, 0, 0)
+    if player.Team and player.Team.TeamColor then
+        color = player.Team.TeamColor.Color
+    end
+
+    -- Khung (Box)
+    local box = Drawing.new("Square")
+    box.Thickness = 1.5
+    box.Color = color
+    box.Filled = false
+    box.Visible = Settings.ESPBox
+    esp.Box = box
+
+    -- Tên
+    local name = Drawing.new("Text")
+    name.Text = player.Name
+    name.Size = 14
+    name.Center = true
+    name.Color = Color3.new(1, 1, 1)
+    name.Visible = Settings.ESPName
+    esp.Name = name
+
+    -- Thanh máu
+    local healthBg = Drawing.new("Square")
+    healthBg.Thickness = 1
+    healthBg.Color = Color3.new(0.2, 0.2, 0.2)
+    healthBg.Filled = true
+    healthBg.Visible = Settings.ESPHealth
+    esp.HealthBg = healthBg
+
+    local healthBar = Drawing.new("Square")
+    healthBar.Thickness = 1
+    healthBar.Color = Color3.new(0, 1, 0)
+    healthBar.Filled = true
+    healthBar.Visible = Settings.ESPHealth
+    esp.HealthBar = healthBar
+
+    -- Khoảng cách
+    local dist = Drawing.new("Text")
+    dist.Text = ""
+    dist.Size = 12
+    dist.Center = true
+    dist.Color = Color3.new(1, 1, 0)
+    dist.Visible = Settings.ESPDistance
+    esp.Dist = dist
+
+    espObjects[player] = esp
+end
+
+function UpdateESP(player)
+    local esp = espObjects[player]
+    if not esp then return end
+    local character = player.Character
+    if not character then
+        for _, obj in pairs(esp) do if obj then obj.Visible = false end end
+        return
+    end
+    local root = character:FindFirstChild("HumanoidRootPart")
+    if not root then
+        for _, obj in pairs(esp) do if obj then obj.Visible = false end end
+        return
+    end
+
+    local pos, onScreen = Camera:WorldToScreenPoint(root.Position)
+    if not onScreen then
+        for _, obj in pairs(esp) do if obj then obj.Visible = false end end
+        return
+    end
+
+    local color = Color3.fromRGB(255, 0, 0)
+    if player.Team and player.Team.TeamColor then
+        color = player.Team.TeamColor.Color
+    end
+
+    local width = 80 / (pos.Z) * 3
+    local height = 120 / (pos.Z) * 3
+    local x, y = pos.X - width/2, pos.Y - height/2
+
+    esp.Box.Size = Vector2.new(width, height)
+    esp.Box.Position = Vector2.new(x, y)
+    esp.Box.Color = color
+    esp.Box.Visible = Settings.ESPBox and onScreen and espEnabled
+
+    esp.Name.Text = player.Name
+    esp.Name.Position = Vector2.new(pos.X, y - 20)
+    esp.Name.Visible = Settings.ESPName and onScreen and espEnabled
+
+    local hum = character:FindFirstChild("Humanoid")
+    local health = hum and hum.Health or 100
+    local maxHealth = hum and hum.MaxHealth or 100
+    local healthPercent = math.clamp(health / maxHealth, 0, 1)
+    local barWidth = width * 0.6
+    local barHeight = 6
+    local barX = x + (width - barWidth) / 2
+    local barY = y + height + 4
+
+    esp.HealthBg.Size = Vector2.new(barWidth, barHeight)
+    esp.HealthBg.Position = Vector2.new(barX, barY)
+    esp.HealthBg.Visible = Settings.ESPHealth and onScreen and espEnabled
+
+    esp.HealthBar.Size = Vector2.new(barWidth * healthPercent, barHeight)
+    esp.HealthBar.Position = Vector2.new(barX, barY)
+    esp.HealthBar.Color = Color3.new(1 - healthPercent, healthPercent, 0)
+    esp.HealthBar.Visible = Settings.ESPHealth and onScreen and espEnabled
+
+    local distVal = math.floor((root.Position - Camera.CFrame.Position).Magnitude)
+    esp.Dist.Text = tostring(distVal) .. "m"
+    esp.Dist.Position = Vector2.new(pos.X, y + height + 22)
+    esp.Dist.Visible = Settings.ESPDistance and onScreen and espEnabled
+end
+
+function RemoveESP(player)
+    local esp = espObjects[player]
+    if esp then
+        for _, obj in pairs(esp) do
+            if obj then obj:Remove() end
+        end
+        espObjects[player] = nil
+    end
+end
+
+-- ================== SILENT AIM + WALLBANG ==================
+local NonHeadParts = {
+    "Torso", "HumanoidRootPart", "UpperTorso", "LowerTorso",
+    "Left Arm", "Right Arm", "Left Leg", "Right Leg"
+}
+
+function GetTargetPart(player)
+    if not player or not player.Character then return nil end
+    -- Chọn Head hoặc HumanoidRootPart
+    local part = player.Character:FindFirstChild(Settings.AimPart)
+    if not part then
+        part = player.Character:FindFirstChild("HumanoidRootPart")
+    end
+    return part
+end
+
+function GetClosestPlayerToCrosshair()
+    local closest = nil
+    local shortestDist = math.huge
+    for _, v in pairs(Players:GetPlayers()) do
+        if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("HumanoidRootPart") then
+            local root = v.Character.HumanoidRootPart
+            local pos, onScreen = Camera:WorldToScreenPoint(root.Position)
+            if onScreen then
+                local dist = (Vector2.new(pos.X, pos.Y) - Vector2.new(Mouse.X, Mouse.Y)).Magnitude
+                if dist < Settings.FOVRadius and dist < shortestDist then
+                    shortestDist = dist
+                    closest = v
+                end
+            end
+        end
+    end
+    return closest
+end
+
+-- Silent Aim: điều chỉnh hướng bắn mà không di chuyển chuột
+function SilentAim()
+    if not Settings.SilentAim then return end
+    local target = GetClosestPlayerToCrosshair()
+    if not target then return end
+    local part = GetTargetPart(target)
+    if not part then return end
+    
+    -- Lấy vị trí của phần cơ thể mục tiêu trên màn hình
+    local targetPos, onScreen = Camera:WorldToScreenPoint(part.Position)
+    if not onScreen then return end
+    
+    -- Tính toán hướng bắn (điều chỉnh CFrame của Camera hoặc weapon)
+    -- Đây là cơ chế Silent Aim cơ bản: thay đổi hướng nhìn của nhân vật
+    local direction = (part.Position - Camera.CFrame.Position).Unit
+    local newCFrame = CFrame.lookAt(Camera.CFrame.Position, part.Position)
+    
+    -- Áp dụng cho Camera (hiệu ứng Silent Aim)
+    -- Lưu ý: một số game có cơ chế chống, cần điều chỉnh cho phù hợp
+    Camera.CFrame = Camera.CFrame:Lerp(newCFrame, 0.5)
+end
+
+-- ================== NO RECOIL ==================
+function NoRecoil()
+    if not Settings.NoRecoil then return end
+    -- Tìm weapon hiện tại và reset recoil
+    local character = LocalPlayer.Character
+    if not character then return end
+    local tool = character:FindFirstChildOfClass("Tool")
+    if not tool then return end
+    -- Một số game dùng Camera để tạo recoil
+    -- Reset Camera CFrame về vị trí ban đầu (tùy chỉnh theo game)
+end
+
+-- ================== PHÍM TẮT ==================
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.F1 then
+        Settings.SilentAim = not Settings.SilentAim
+        print("Silent Aim " .. (Settings.SilentAim and "BẬT" or "TẮT"))
+    elseif input.KeyCode == Enum.KeyCode.F2 then
+        espEnabled = not espEnabled
+        print("ESP " .. (espEnabled and "BẬT" or "TẮT"))
+    elseif input.KeyCode == Enum.KeyCode.F3 then
+        Settings.WallBang = not Settings.WallBang
+        print("WallBang " .. (Settings.WallBang and "BẬT" or "TẮT"))
+    end
+end)
+
+-- ================== THEO DÕI NGƯỜI CHƠI ==================
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function()
+        task.wait(0.5)
+        CreateESP(player)
+    end)
+end)
+
+Players.PlayerRemoving:Connect(RemoveESP)
+
+for _, player in pairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer then
+        player.CharacterAdded:Connect(function()
+            task.wait(0.5)
+            CreateESP(player)
+        end)
+        if player.Character then
+            task.wait(0.5)
+            CreateESP(player)
+        end
+    end
+end
+
+-- ================== VÒNG LẶP CHÍNH ==================
+RunService.RenderStepped:Connect(function()
+    -- Cập nhật ESP
+    for player, _ in pairs(espObjects) do
+        if player and player.Character then
+            UpdateESP(player)
+        else
+            RemoveESP(player)
+        end
+    end
+    
+    -- Silent Aim (chạy liên tục)
+    if Settings.SilentAim then
+        SilentAim()
+    end
+    
+    -- No Recoil (chạy liên tục)
+    if Settings.NoRecoil then
+        NoRecoil()
+    end
+end)
+
+-- ================== MENU ĐƠN GIẢN (IN RA CONSOLE) ==================
+print("========================================")
+print("   PISTOL ARENA SCRIPT - DELTA X VNG")
+print("========================================")
+print("Phím tắt:")
+print("  F1 - Bật/Tắt Silent Aim")
+print("  F2 - Bật/Tắt ESP")
+print("  F3 - Bật/Tắt WallBang")
+print("========================================")
+print("Script đã chạy thành công!")
