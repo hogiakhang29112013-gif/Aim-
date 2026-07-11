@@ -1,0 +1,114 @@
+-- LocalScript inside StarterGui -> ScreenGui
+
+local Players = game:Service("Players")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:Service("RunService")
+local TweenService = game:Service("TweenService")
+
+local screenGui = script.Parent
+
+---------------------------------------------------------
+-- 1. TẠO VÒNG TRÒN ĐỊNH HƯỚNG TÂM NGẮM (FOV CIRCLE)
+---------------------------------------------------------
+local FOVCircle = Instance.new("Frame")
+FOVCircle.Name = "FOVCircle"
+FOVCircle.Size = UDim2.new(0, 200, 0, 200) -- Đường kính vòng tròn (200x200 pixel)
+FOVCircle.Position = UDim2.new(0.5, -100, 0.5, -100) -- Căn chính giữa màn hình
+FOVCircle.BackgroundTransparency = 1 -- Ẩn nền Frame
+
+-- Dùng UIStroke để vẽ viền tròn
+local Stroke = Instance.new("UIStroke")
+Stroke.Thickness = 2
+Stroke.Color = Color3.fromRGB(255, 255, 255) -- Màu trắng mặc định
+Stroke.Parent = FOVCircle
+
+-- Dùng UICorner để biến Frame thành hình tròn
+local Corner = Instance.new("UICorner")
+Corner.CornerRadius = UDim.new(1, 0) -- Bo góc tối đa thành hình tròn
+Corner.Parent = FOVCircle
+
+FOVCircle.Parent = screenGui
+
+---------------------------------------------------------
+-- 2. TẠO MENU ĐIỀU KHIỂN
+---------------------------------------------------------
+local Menu = Instance.new("Frame")
+Menu.Name = "MainMenu"
+Menu.Size = UDim2.new(0, 250, 0, 180)
+Menu.Position = UDim2.new(0.1, 0, 0.3, 0) -- Nằm bên góc trái màn hình
+Menu.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+Menu.Active = true
+Menu.Draggable = true -- Cho phép người chơi kéo thả menu trên màn hình
+
+-- Viền của Menu (Nơi sẽ áp dụng hiệu ứng bảy màu)
+local MenuStroke = Instance.new("UIStroke")
+MenuStroke.Thickness = 3
+MenuStroke.Color = Color3.fromRGB(255, 0, 0)
+MenuStroke.Parent = Menu
+
+-- Tiêu đề Menu
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.BackgroundTransparency = 1
+Title.Text = "ASSIST MENU"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 18
+Title.Font = Enum.Font.SourceSansBold
+Title.Parent = Menu
+
+-- Nút Bật/Tắt viền bảy màu
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Size = UDim2.new(0, 200, 0, 40)
+ToggleButton.Position = UDim2.new(0.5, -100, 0.6, -20)
+ToggleButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+ToggleButton.Text = "Viền RGB: BẬT"
+ToggleButton.TextColor3 = Color3.fromRGB(0, 255, 0)
+ToggleButton.TextSize = 16
+ToggleButton.Font = Enum.Font.SourceSans
+ToggleButton.Parent = Menu
+
+local MenuCorner = Instance.new("UICorner")
+MenuCorner.CornerRadius = UDim.new(0, 8)
+MenuCorner.Parent = Menu
+
+local ButtonCorner = Instance.new("UICorner")
+ButtonCorner.CornerRadius = UDim.new(0, 6)
+ButtonCorner.Parent = ToggleButton
+
+---------------------------------------------------------
+-- 3. LOGIC XỬ LÝ HIỆU ỨNG BẢY MÀU (RGB CHROMA)
+---------------------------------------------------------
+local rgbEnabled = true
+local tickCount = 0
+
+-- Chạy vòng lặp cập nhật màu liên tục theo thời gian thực
+RunService.RenderStepped:Connect(function(deltaTime)
+	if rgbEnabled then
+		-- Tăng biến đếm dựa trên thời gian, tốc độ thay đổi màu phụ thuộc vào số chia (ở đây là 5)
+		tickCount = tickCount + (deltaTime * 0.2)
+		if tickCount > 1 then tickCount = 0 end
+		
+		-- Chuyển đổi giá trị từ HSV (Sắc độ bảy màu) sang RGB
+		local rainbowColor = Color3.fromHSV(tickCount, 1, 1)
+		
+		-- Áp dụng màu cho viền Menu và cả vòng tròn FOV tâm ngắm
+		MenuStroke.Color = rainbowColor
+		Stroke.Color = rainbowColor
+	else
+		-- Nếu tắt RGB, trả về màu xám cố định
+		MenuStroke.Color = Color3.fromRGB(100, 100, 100)
+		Stroke.Color = Color3.fromRGB(255, 255, 255)
+	end
+end)
+
+-- Sự kiện khi bấm nút Bật/Tắt
+ToggleButton.MouseButton1Click:Connect(function()
+	rgbEnabled = not rgbEnabled
+	if rgbEnabled then
+		ToggleButton.Text = "Viền RGB: BẬT"
+		ToggleButton.TextColor3 = Color3.fromRGB(0, 255, 0)
+	else
+		ToggleButton.Text = "Viền RGB: TẮT"
+		ToggleButton.TextColor3 = Color3.fromRGB(255, 0, 0)
+	end
+end)
